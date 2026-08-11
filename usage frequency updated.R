@@ -16,7 +16,6 @@ library(dplyr)
 library(tidyverse)
 library(stringr)
 
-
 final_dataset <- read.csv("final_dataset_missing_data_handled.csv")
 
 final_dataset %>% 
@@ -71,8 +70,6 @@ devicetypes <- final_dataset %>%
   ) %>%
   ungroup()
 
-
-
 # Convert numeric device_type to ordered factor for ordinal regression # numerical
 devicetypes$device_type <- factor(
   devicetypes$device_type,
@@ -81,14 +78,6 @@ devicetypes$device_type <- factor(
 )
 
 class(devicetypes$device_type)
-
-
-
-
-
-
-
-  
 
 devicetypes %>%
   group_by(device_type) %>%
@@ -252,11 +241,6 @@ regression2_data <- regression_data[-rows_to_remove, ]
 
 
 model2 <- lm(max_usage_ml~ device_type + knowledge_sum+ attitudes_average+ beliefs_average, data = regression2_data)
-
-
-
-
-
 
 regression2_data %>%
   mutate(fitted = fitted(model2)) %>%
