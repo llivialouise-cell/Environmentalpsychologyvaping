@@ -21,9 +21,6 @@ final_dataset <- final_dataset %>%
       current_vaping_device_type_other,  
       current_vaping_device_type))
 
-
-
-
 # check
 test <- final_dataset %>% 
   group_by(current_vaping_device_type) %>% 
@@ -39,8 +36,6 @@ final_dataset <- final_dataset %>%
     current_nicotine_level_other_mg_ml = as.numeric(current_nicotine_level_other_mg_ml),
     current_nicotine_level_mg_ml = as.numeric(current_nicotine_level_mg_ml),
     current_nicotine_level_mg_ml = coalesce(current_nicotine_level_other_mg_ml, current_nicotine_level_mg_ml))
-
-
 
 # remove these columns
 final_dataset <- final_dataset %>% 
@@ -61,7 +56,6 @@ final_dataset <- final_dataset %>%
 
 final_dataset <- final_dataset %>% 
   select(-eliquid_bottle_size_6_months_ago_other_ml)
-
 
 # add up averages and sums 
 final_dataset<- final_dataset %>%
@@ -368,8 +362,6 @@ final_dataset <- final_dataset %>%
     current_pod_avg_daily_ml_consumption = current_pod_avg_daily_puffs * (1/300),
     current_disposable_avg_daily_ml_consumption = current_disposable_avg_daily_puffs * (1/300)
   )
-
-
 
 
 final_dataset <- final_dataset %>%
