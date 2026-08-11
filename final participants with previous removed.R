@@ -1,6 +1,5 @@
 recoded_dataset <- read_csv("recoded_dataset_prev_removed.csv")
 
-# here i need to understand which participants to remove and remove irrelevant cols 
 # start by checking ethics 
 
 test <- recoded_dataset %>%
