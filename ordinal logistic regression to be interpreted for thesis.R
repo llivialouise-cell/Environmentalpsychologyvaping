@@ -1,24 +1,21 @@
+# Load in packages 
 require(MASS)
 require(Hmisc)
 require(reshape2)
 library(ordinal)
 library(VGAM)
-   # For VIF
 library(brant)    # Brant test
 library(dplyr)
 library(tidyverse)
 library(stringr)
 install.packages("sjPlot")
 library(sjPlot)
-library(MASS)
 detach("package:car", unload = TRUE)
+library(tidyr)
+library(ggplot2)
 
-library(dplyr)
-library(MASS)
-library(brant)
-
+# load in final dataset 
 final_dataset <- read.csv("final_dataset_missing_data_handled.csv")
-
 
 # Assign device type based on highest usage
 devicetypes <- final_dataset %>%
@@ -32,7 +29,6 @@ devicetypes <- final_dataset %>%
     )
   )
 
-
 # Convert to ordered factor
 devicetypes$device_type <- factor(
   devicetypes$device_type,
@@ -44,7 +40,6 @@ devicetypes$device_type <- factor(
 
 # Check outcome distribution
 table(devicetypes$device_type)
-
 
 # Create model dataset
 olr_data <- devicetypes %>%
@@ -59,7 +54,6 @@ olr_data <- devicetypes %>%
   ) %>%
   filter(complete.cases(.))
 
-
 # Fit ordinal logistic regression
 olr_model <- MASS::polr(
   device_type ~ 
@@ -73,28 +67,22 @@ olr_model <- MASS::polr(
   Hess = TRUE
 )
 
-
 # Results
 summary(olr_model)
-
 
 # Proportional odds assumption
 brant(olr_model)
 
-
 # Odds ratios
 exp(coef(olr_model))
-
 
 # Confidence intervals
 exp(confint(olr_model))
 
-
 # Model fit
 AIC(olr_model)
 
-
-library(VGAM)
+# fit ppo model 
 ppo_model <- vglm(
   device_type ~
     knowledge_sum +
@@ -115,7 +103,7 @@ ppo_model <- vglm(
 
 summary(ppo_model)
 
-
+# Generate prediction data across the observed range of nicotine strength
 newdat <- data.frame(
   knowledge_sum = mean(olr_data$knowledge_sum),
   beliefs_average = mean(olr_data$beliefs_average),
@@ -128,21 +116,25 @@ newdat <- data.frame(
     length.out = 200
   )
 )
+# Generate predicted probabilities from the proportional odds model
 pred <- predict(
   ppo_model,
   newdata = newdat,
   type = "response"
 )
+
+# Combine prediction data with predicted probabilities
 plot_dat <- cbind(newdat, pred)
 
+# Label predicted probability columns by device type
 names(plot_dat)[7:10] <- c(
   "Disposable",
   "Closed pod",
   "Open pod",
   "Tank"
 )
-library(tidyr)
 
+# Reshape predicted probabilities for plotting
 plot_dat <- pivot_longer(
   plot_dat,
   cols = Disposable:Tank,
@@ -150,8 +142,7 @@ plot_dat <- pivot_longer(
   values_to = "Probability"
 )
 
-library(ggplot2)
-
+# Plot predicted probability of device type across nicotine strength
 ggplot(plot_dat,
        aes(x = current_nicotine_level_mg_ml,
            y = Probability,
@@ -180,11 +171,11 @@ ggplot(plot_dat,
     plot.title = element_text(face = "bold")
   )
 
+# Inspect predicted probability columns and device type frequencies
 colnames(pred)
 table(olr_data$device_type)
 
-library(ggplot2)
-
+# Plot observed proportion of device types across nicotine strength
 ggplot(olr_data,
        aes(x = current_nicotine_level_mg_ml,
            fill = device_type)) +
