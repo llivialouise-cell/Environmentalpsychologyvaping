@@ -1,3 +1,4 @@
+# Load required packages
 library(tidyverse)
 library(psych)
 library(car)
@@ -6,8 +7,10 @@ library(lm.beta)
 library(lmtest)
 library(ggplot2)
 
+# Load final dataset
 final_dataset <- read.csv("final_dataset_missing_data_handled.csv")
 
+# Prepare device type variable
 final_dataset$device_type <- factor(final_dataset$device_type)
 
 final_dataset$device_type <- relevel(
@@ -15,23 +18,25 @@ final_dataset$device_type <- relevel(
   ref = "open pod"
 )
 
+# Select variables for regression analysis
 regression_data <- final_dataset %>% 
   dplyr::select(max_usage_ml,
          device_type, self_enhancement,
          self_transcendence,
          current_nicotine_level_mg_ml)
 
+# Remove observations with missing usage data
 regression_data <- regression_data %>% 
   filter(!is.na(max_usage_ml))
 
-
+# Fit initial multiple linear regression model
 model<- lm(current_nicotine_level_mg_ml ~ max_usage_ml+ device_type +
              self_transcendence+ self_enhancement , data = regression_data)
 
 plot(model)
 
 
-
+# Plot residuals against fitted values
 regression_data %>%
   mutate(fitted = fitted(model)) %>%
   mutate(residuals = residuals(model)) %>%
@@ -43,7 +48,9 @@ regression_data %>%
        x = "Fitted values",
        y = "Residuals")
 
+## Assumption checks 
 harvtest(model)
+
 raintest(model)
 
 hist(residuals(model),
@@ -57,20 +64,18 @@ shapiro.test(residuals(model))
 
 bptest(model)
 
-
 cor(regression_data[, c("current_nicotine_level_mg_ml",
                         "max_usage_ml",
                         "self_transcendence",
                         "self_enhancement")],
     use = "pairwise.complete.obs")
 
-
 durbinWatsonTest(model)
 vif(model)
 
 summary(model)
 
-# extra checks (might not be needed)
+# Check for outliers 
 
 leverages <- hatvalues(model)
 
@@ -168,14 +173,10 @@ rows_to_remove <- points_to_show
 
 regression2_data <- regression_data[-rows_to_remove, ]
 
-
-
-
+# fit model with outliers removed 
 model2<- lm(current_nicotine_level_mg_ml ~ max_usage_ml+ device_type +
               self_transcendence+ self_enhancement , data = regression2_data)
-
-
-
+## assumption checks 
 
 regression2_data %>%
   mutate(fitted = fitted(model2)) %>%
@@ -209,9 +210,6 @@ cor(regression2_data[, c("current_nicotine_level_mg_ml",
                          "self_transcendence",
                          "self_enhancement")],
     use = "pairwise.complete.obs")
-
-
-
 
 summary(model2)
 
