@@ -1,3 +1,4 @@
+# load in packages 
 library(tidyverse)
 library(magrittr)
 library(car)
@@ -9,24 +10,25 @@ library(broom)
 library(dplyr)
 install.packages("sandwich")
 install.packages("lmtest")
-
 library(sandwich)
 library(lmtest)
 
-# Import data
+# Import dataset 
 final_dataset <- read.csv("final_dataset_missing_data_handled.csv")
 
-
+# set the device type class 
 class(final_dataset$device_type)
 str(final_dataset$device_type)
 
 final_dataset$device_type <- factor(final_dataset$device_type)
 
+# set the open-pod as a reference point 
 final_dataset$device_type <- relevel(
   final_dataset$device_type,
   ref = "open pod"
 )
 
+# select variables 
 sem_data <- final_dataset %>%
   dplyr::select(
     attitudes_average,
@@ -39,9 +41,10 @@ sem_data <- final_dataset %>%
   ) %>%
   filter(!is.na(max_usage_ml))
 
-
+# set the model 
 sem_data %$% lm(max_usage_ml~ device_type + attitudes_average + knowledge_sum + beliefs_average + self_transcendence +self_enhancement) %>% summary
 
+# optional- test unique models 
 m1 <- lm(
   max_usage_ml ~
     device_type +
@@ -102,7 +105,7 @@ summary(m4)
 summary(m5)
 summary(m6)
 
-# Centering variables
+# Mean centre variables
 sem_data <- sem_data %>%
   mutate(
     attitudes_average_c   = scale(attitudes_average, center = TRUE, scale = FALSE),
@@ -112,6 +115,7 @@ sem_data <- sem_data %>%
     self_enhancement_c    = scale(self_enhancement, center = TRUE, scale = FALSE)
   )
 
+# set the model 
 full_model <- lm(
   max_usage_ml ~
     device_type +
@@ -125,7 +129,7 @@ full_model <- lm(
 )
 
 
-
+## assumption checks 
 resid_model_centred <- residuals(full_model)
 
 # Histogram of residuals
@@ -135,6 +139,7 @@ hist(resid_model_centred, main = "Histogram of Residuals", xlab = "Residuals")
 qqnorm(resid_model_centred)
 qqline(resid_model_centred, col = "red")
 
+# residuals vs fitted values 
 plot(fitted(full_model), resid_model_centred,
      main = "Residuals vs Fitted",
      xlab = "Fitted values",
@@ -142,27 +147,20 @@ plot(fitted(full_model), resid_model_centred,
 abline(h = 0, col = "red")
 
 shapiro.test(resid_model_centred)
-
-
 bptest(full_model)
-
 vif(full_model)
-
 harvtest(full_model)
-
 table(sem_data$device_type)
 vif(full_model)
 
+# correlation matrix 
 predictors <- sem_data %>%
   dplyr::select(attitudes_average_c, beliefs_average_c, knowledge_sum_c,
                 self_transcendence_c, self_enhancement_c)
 
-# Correlation matrix with p-values
 rcorr(as.matrix(predictors))
 
-
-
-
+# Checking for outliers 
 cooks <- cooks.distance(full_model)
 plot(cooks, type = "h", main = "Cook's Distance")
 abline(h = 4/length(cooks), col = "red", lty = 2)
@@ -172,8 +170,6 @@ lev <- hatvalues(full_model)
 plot(lev, type="h", main="Leverage (Hat Values)")
 abline(h = 2*mean(lev), col="red", lty=2)
 which(lev > 2*mean(lev))
-
-
 
 # Compute thresholds
 cook_thresh <- 4/length(cooks)
@@ -194,6 +190,7 @@ abline(h = cook_thresh, col="red", lty=2)
 
 text(lev[both_bad], cooks[both_bad], labels = both_bad, pos = 3)
 
+# Set model with outliers removed 
 clean_model <- lm(  max_usage_ml ~
                       device_type +
                       attitudes_average_c * self_transcendence_c +
@@ -204,7 +201,7 @@ clean_model <- lm(  max_usage_ml ~
                       knowledge_sum_c     * self_enhancement_c, data = sem_data[-both_bad, ])
 summary(clean_model)
 
-
+# Re-check assumptions 
 resid_clean_model <- residuals(clean_model)
 
 # Histogram of residuals
@@ -221,7 +218,6 @@ plot(fitted(clean_model), resid_clean_model,
 abline(h = 0, col = "red")
 
 shapiro.test(resid_clean_model)
-
 
 bptest(clean_model)
 summary(clean_model)
