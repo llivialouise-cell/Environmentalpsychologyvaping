@@ -1,11 +1,12 @@
-final_dataset <- read.csv("final_dataset_missing_data_handled.csv")
-
-
-
+# Load in packages 
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 
+# load in final dataset 
+final_dataset <- read.csv("final_dataset_missing_data_handled.csv")
+
+# Calculate frequencies for individual current vaping device types
 device_counts <- final_dataset %>%
   separate_rows(current_vaping_device_type, sep = ",") %>%
   count(current_vaping_device_type) %>%
@@ -13,6 +14,7 @@ device_counts <- final_dataset %>%
 
 device_counts
 
+# Plot frequencies of individual current vaping device types
 ggplot(device_counts, 
        aes(x = reorder(current_vaping_device_type, -n), 
            y = n)) +
@@ -32,17 +34,14 @@ ggplot(device_counts,
   ) +
   theme_classic()
 
-
-library(ggplot2)
+# Calculate frequencies of current vaping device combinations
 table(final_dataset$current_vaping_device_type)
 device_table <- table(final_dataset$current_vaping_device_type)
 device_table <- as.data.frame(device_table)
 
 colnames(device_table) <- c("current_vaping_device_type", "n")
 
-
-library(ggplot2)
-
+# Plot frequencies of current vaping device combinations
 ggplot(device_table,
        aes(x = reorder(current_vaping_device_type, n),
            y = n)) +
