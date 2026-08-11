@@ -1,32 +1,37 @@
+# Load in packages 
+library(dplyr)
+library(psych)
+
+# Load in final dataset 
 final_dataset <- read.csv("final_dataset_missing_data_handled.csv")
 
-
-
+# Check for missing data from devise usage 
 participants_all_missing <- final_dataset %>%
   filter(if_all(
     c(disposable_usage_ml, closedpod_usage_ml, openpod_usage_ml, tank_usage_ml),
     is.na
   ))
 
+# Check for the use of other devices 
 model_dataset <- final_dataset %>%
   filter(current_vaping_device_type != "other")
 
+# set a model dataset 
 participants_all_missing <- model_dataset %>%
   filter(if_all(
     c(disposable_usage_ml, closedpod_usage_ml, openpod_usage_ml, tank_usage_ml),
     is.na
   ))
 
-library(dplyr)
-
+# check gender statistics 
 gender_table <- model_dataset %>%
   count(gender) %>%
   mutate(
     Percent = round(n / sum(n) * 100, 1)
   )
-
 gender_table
 
+# check location statistics 
 location_table <- model_dataset %>%
   count(location) %>%
   mutate(
@@ -35,6 +40,7 @@ location_table <- model_dataset %>%
 
 location_table
 
+# check age statistics 
 model_dataset %>%
   summarise(
     Min = min(age, na.rm = TRUE),
@@ -43,12 +49,14 @@ model_dataset %>%
     SD = round(sd(age, na.rm = TRUE), 1)
   )
 
+## check for missing variable responses 
 values <- final_dataset %>% 
   count(self_transcendence) # nothing missing 
 
 values <- final_dataset %>% 
-  count(self_enhancement)
+  count(self_enhancement) # nothing missing 
 
+# Make a histogram for self-transcendence 
 hist((final_dataset$self_transcendence),
      main = "Histogram of Self-transcendence",
      xlab = "Self-transcendence score")
@@ -61,8 +69,7 @@ Self_transcendence <- final_dataset %>%
     SD = round(sd(self_transcendence, na.rm = TRUE), 1)
   )
 
-
-
+# Make a histogram for self-enhancement 
 hist((final_dataset$self_enhancement),
      main = "Histogram of Self-enhancement",
      xlab = "Self-enhancement score")
@@ -75,7 +82,7 @@ self_enhancement <- final_dataset %>%
     SD = round(sd(self_enhancement, na.rm = TRUE), 1)
   )
 
-
+# make a histogram for beliefs 
 hist((final_dataset$beliefs_average),
      main = "Histogram of Average Beliefs Score",
      xlab = "Beliefs score")
@@ -88,6 +95,7 @@ beliefs_average <- final_dataset %>%
     SD = round(sd(beliefs_average, na.rm = TRUE), 1)
   )
 
+# Make a histogram for knowledge 
 hist((final_dataset$knowledge_sum),
      main = "Histogram of Knowledge Score",
      xlab = "Knowledge score")
@@ -100,6 +108,7 @@ knowledge_sum <- final_dataset %>%
     SD = round(sd(knowledge_sum, na.rm = TRUE), 1)
   )
 
+# Make a histogram for attitudes 
 hist((final_dataset$attitudes_average),
      main = "Histogram of Average Attitudes Score",
      xlab = "Attitudes score")
@@ -112,6 +121,7 @@ attitudes_average<- final_dataset %>%
     SD = round(sd(attitudes_average, na.rm = TRUE), 1)
   )
 
+# make a histogram for nicotine strength 
 hist((final_dataset$current_nicotine_level_mg_ml),
      main = "Histogram of Current Nicotine Levels",
      xlab = "Nicotine levels")
@@ -127,6 +137,7 @@ axis(side = 1,
               by = 5))
 
 
+# check nicotine statistics 
 current_nicotine_level_mg_ml<- final_dataset %>%
   summarise(
     Min = min(current_nicotine_level_mg_ml, na.rm = TRUE),
@@ -135,12 +146,8 @@ current_nicotine_level_mg_ml<- final_dataset %>%
     SD = round(sd(current_nicotine_level_mg_ml, na.rm = TRUE), 1)
   )
 
-write.csv(model_dataset,
-          "final_dataset_missing_data_handled.csv",
-          row.names = FALSE)
+## calculating cronbachs alphas 
 
-library(psych)
-# calculating cronbachs alphas 
 belief_items <- final_dataset %>%
   dplyr::select(beliefs_1, beliefs_2, beliefs_3, beliefs_4)
 
@@ -170,6 +177,12 @@ self_enhancement_items <- final_dataset %>%
   dplyr::select(hedonistic_1, hedonistic_2, hedonistic_3,
                 egoistic_1, egoistic_2, egoistic_3, egoistic_4,
                 egoistic_5)
+
+# save as csv 
+write.csv(model_dataset,
+          "final_dataset_missing_data_handled.csv",
+          row.names = FALSE)
+
 
 alpha(self_enhancement_items)
 
