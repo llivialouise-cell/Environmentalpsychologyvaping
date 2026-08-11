@@ -1,11 +1,11 @@
-
+# load in packages 
 library(tidyverse)
 library(readr)
 library(dplyr)
 library(stringr)
+# load in dataset 
 recoded_dataset <- read_csv("recoded_dataset.csv")
 
-# here i need to understand which participants to remove and remove irrelevant cols 
 # start by checking ethics 
 
 test <- recoded_dataset %>%
