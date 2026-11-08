@@ -1,0 +1,338 @@
+library(tidyverse)
+library(car)
+library(lmtest)    # FIXED: Added for coeftest() and bptest()
+library(sandwich)  # FIXED: Added for vcovHC()
+
+options(scipen=999)
+
+# Load data
+final_dataset <- read.csv("final_dataset_missing_data_handled.csv")
+
+# Ensure device_type is a factor
+final_dataset$device_type <- factor(final_dataset$device_type)
+final_dataset$device_type <- relevel(final_dataset$device_type, ref = "open pod")
+
+# Select variables needed for the hierarchical model
+hier_data <- final_dataset %>%
+  select(
+    current_nicotine_level_mg_ml,
+    max_usage_ml,
+    device_type,
+    self_transcendence,
+    self_enhancement, 
+    knowledge_sum,
+    beliefs_average,
+    attitudes_average
+  ) %>%
+  filter(complete.cases(.))   # hierarchical regression uses overlapping cases
+
+# Center predictors (FIXED: [,1] strips matrix structure left by scale())
+hier_data <- hier_data %>%
+  mutate(
+    knowledge_c       = scale(knowledge_sum, center = TRUE, scale = FALSE)[,1],
+    beliefs_c         = scale(beliefs_average, center = TRUE, scale = FALSE)[,1],
+    attitudes_c       = scale(attitudes_average, center = TRUE, scale = FALSE)[,1],
+    transcendence_c   = scale(self_transcendence, center = TRUE, scale = FALSE)[,1],
+    enhancement_c     = scale(self_enhancement, center = TRUE, scale = FALSE)[,1],
+    daily_consumption_c = scale(max_usage_ml, center = TRUE, scale = FALSE) [,1],
+    )
+
+# -----------------------------
+# BLOCK 1: Device type only as a control
+# -----------------------------
+model1 <- lm(current_nicotine_level_mg_ml ~ device_type, data = hier_data)
+
+# -----------------------------
+# BLOCK 2: main effects of all variables
+# -----------------------------
+model2 <- lm(current_nicotine_level_mg_ml ~ device_type +
+               transcendence_c + enhancement_c + 
+               daily_consumption_c +
+               knowledge_c + beliefs_c + attitudes_c, 
+                data = hier_data)
+
+# -----------------------------
+# BLOCK 3: Adding interaction terms 
+# -----------------------------
+model3 <- lm(current_nicotine_level_mg_ml ~ device_type +
+               transcendence_c + enhancement_c +
+               daily_consumption_c +
+               knowledge_c + beliefs_c + attitudes_c +
+               (transcendence_c:knowledge_c) + (transcendence_c:beliefs_c) + (transcendence_c:attitudes_c) +
+               (enhancement_c:knowledge_c) + (enhancement_c:beliefs_c) + (enhancement_c:attitudes_c)+
+             (daily_consumption_c:knowledge_c) + (daily_consumption_c:beliefs_c) + (daily_consumption_c:attitudes_c),
+             data = hier_data)
+
+# Compare models (ΔR²)
+anova(model1, model2, model3)
+
+summary(model1)
+summary(model2)
+summary(model3)
+
+# calculating ΔR² = subtracting model 2 from model 3
+summary(model3)$r.squared - summary(model2)$r.squared 
+
+
+# diagnostic checks on model 3 
+# ============================================================
+# 9. ROBUST STANDARD ERRORS
+# ============================================================
+
+coeftest(model1, vcov. = vcovHC(model1, type = "HC3"))
+coeftest(model2, vcov. = vcovHC(model2, type = "HC3"))
+coeftest(model3, vcov. = vcovHC(model3, type = "HC3"))
+
+
+# ============================================================
+# 10. REGRESSION DIAGNOSTICS FOR FINAL MODEL
+# ============================================================
+
+par(mfrow = c(2, 2))
+plot(model3)
+par(mfrow = c(1, 1))
+
+# Residuals versus fitted values
+ggplot(
+  data.frame(
+    fitted = fitted(model3),
+    residuals = residuals(model3)
+  ),
+  aes(x = fitted, y = residuals)
+) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, colour = "red", linetype = "dashed") +
+  theme_bw() +
+  labs(title = "Residuals versus Fitted Values", x = "Fitted values", y = "Residuals")
+
+# Residual histogram
+hist(residuals(model3), main = "Histogram of Residuals", xlab = "Residuals")
+
+# Normal Q-Q plot
+qqnorm(residuals(model3))
+qqline(residuals(model3), col = "red")
+
+# Shapiro-Wilk test
+if (nobs(model3) >= 3 && nobs(model3) <= 5000) {
+  print(shapiro.test(residuals(model3)))
+}
+
+# Breusch-Pagan test for heteroscedasticity
+bptest(model3) 
+
+# Multicollinearity
+vif(model3)
+
+harvtest(model3)
+
+
+# ============================================================
+# 11. INFLUENTIAL OBSERVATIONS
+# ============================================================
+
+n <- nobs(model3)
+p <- length(coef(model3))
+
+leverages <- hatvalues(model3)
+
+# Check the single highest leverage point
+high_leverage_point <- which.max(leverages)
+print(row.names(hier_data)[high_leverage_point])
+
+# Check which rows in the original data were used in the model
+# FIXED: Changed model3$model3 to model3$model
+model_rows <- as.numeric(rownames(model3$model))
+
+# See if row 247 is included
+247 %in% model_rows
+
+# Find the position of row 282 in the model object
+pos_in_model <- which(model_rows == 247)
+
+# Leverage of row 282 (FIXED: Guard added in case 282 is missing)
+if(length(pos_in_model) > 0) {
+  print(leverages[pos_in_model])
+}
+
+# Parameters and average leverage
+p <- length(coef(model3))  
+# FIXED: Changed model3$model3 to model3$model
+n <- nrow(model3$model)    
+average_leverage <- p / n
+
+# Plot leverage values
+plot(leverages, type = "h", 
+     main = "Leverage Values for Each Observation",
+     xlab = "Observation", 
+     ylab = "Leverage")
+
+# Add threshold lines
+abline(h = 2*average_leverage, col = "blue", lty = 2)  
+abline(h = 3*average_leverage, col = "red", lty = 2)   
+
+# Highlight high leverage points
+high_lev_points <- which(leverages > 3*average_leverage)
+if(length(high_lev_points) > 0) {
+  points(high_lev_points, leverages[high_lev_points], col = "red", pch = 19)
+  text(high_lev_points, leverages[high_lev_points], labels = high_lev_points, pos = 3, col = "red")
+}
+
+# Cook's distance
+cooksD <- cooks.distance(model3)
+
+# Common rule: points with Cook's D > 4/n might be influential
+influential_points <- which(cooksD > 4/n)
+print(influential_points)
+
+plot(cooksD, type = "h", main = "Cook's Distance for Each Observation")
+abline(h = 4/n, col = "red", lty = 2)
+
+# Step 1: Calculate leverage and Cook's distance
+leverages <- hatvalues(model3)
+cooksD <- cooks.distance(model3)
+# FIXED: Changed model3$model3 to model3$model
+n <- nrow(model3$model)          
+p <- length(coef(model3))        
+
+# Step 2: Identify points with BOTH high leverage AND high Cook's distance
+lev_threshold <- 2 * p / n
+cook_threshold <- 4 / n
+points_to_show <- which(leverages > lev_threshold & cooksD > cook_threshold)
+
+# Step 3: Plot only those points (FIXED: Guard added if no points meet both conditions)
+if(length(points_to_show) > 0) {
+  plot(
+    leverages[points_to_show],
+    cooksD[points_to_show],
+    xlab = "Leverage",
+    ylab = "Cook's Distance",
+    main = "High Leverage & High Cook's Distance Points",
+    pch = 19,
+    col = "red",
+    xlim = c(min(leverages[points_to_show]) * 0.9, max(leverages[points_to_show]) * 1.1),
+    ylim = c(min(cooksD[points_to_show]) * 0.9, max(cooksD[points_to_show]) * 1.1)
+  )
+  
+  text(
+    x = leverages[points_to_show],
+    y = cooksD[points_to_show],
+    labels = points_to_show,
+    pos = 3,
+    col = "darkred"
+  )
+}
+
+abline(v = lev_threshold, col = "blue", lty = 2)
+abline(h = cook_threshold, col = "blue", lty = 2)
+
+
+# ============================================================
+# SAFE OUTLIER REMOVAL & MODEL RE-ESTIMATION
+# ============================================================
+
+# FIXED: Extracting character row names ensures we drop the precise cases
+rows_to_remove <- names(which(leverages > lev_threshold & cooksD > cook_threshold))
+
+print("Observations targeted for removal:")
+print(rows_to_remove)
+
+# Drop rows safely using row name character vectors
+if(length(rows_to_remove) > 0) {
+  hier_data_clean <- hier_data %>% 
+    filter(!rownames(hier_data) %in% rows_to_remove)
+} else {
+  hier_data_clean <- hier_data
+}
+
+# FIXED: Re-center variables entirely based on the remaining clean dataset profile
+hier_data_clean <- hier_data_clean %>%
+  mutate(
+    knowledge_c       = scale(knowledge_sum, center = TRUE, scale = FALSE)[,1],
+    beliefs_c         = scale(beliefs_average, center = TRUE, scale = FALSE)[,1],
+    attitudes_c       = scale(attitudes_average, center = TRUE, scale = FALSE)[,1],
+    transcendence_c   = scale(self_transcendence, center = TRUE, scale = FALSE)[,1],
+    enhancement_c     = scale(self_enhancement, center = TRUE, scale = FALSE)[,1],
+    daily_consumption_c = scale(max_usage_ml, center = TRUE, scale = FALSE) [,1],
+  )
+  
+# RE-RUN HIERARCHICAL MODELS
+
+model1_clean <- lm(current_nicotine_level_mg_ml ~ device_type, data = hier_data_clean)
+
+
+model2_clean <- lm(current_nicotine_level_mg_ml ~ device_type +
+               transcendence_c + enhancement_c + 
+               daily_consumption_c +
+               knowledge_c + beliefs_c + attitudes_c, 
+             data = hier_data_clean)
+
+model3_clean <- lm(current_nicotine_level_mg_ml ~ device_type +
+               transcendence_c + enhancement_c +
+               daily_consumption_c +
+               knowledge_c + beliefs_c + attitudes_c +
+               (transcendence_c:knowledge_c) + (transcendence_c:beliefs_c) + (transcendence_c:attitudes_c) +
+               (enhancement_c:knowledge_c) + (enhancement_c:beliefs_c) + (enhancement_c:attitudes_c)+
+               (daily_consumption_c:knowledge_c) + (daily_consumption_c:beliefs_c) + (daily_consumption_c:attitudes_c),
+             data = hier_data_clean)
+
+
+# Final clean metrics check
+anova(model1_clean, model2_clean, model3_clean)
+summary(model3_clean)$r.squared - summary(model2_clean)$r.squared
+summary(model3_clean)$adj.r.squared - summary(model2_clean)$adj.r.squared
+
+summary(model1_clean)
+summary(model2_clean)
+summary(model3_clean)
+
+summary(model2_clean)$r.squared - summary(model1_clean)$r.squared
+summary(model2_clean)$adj.r.squared - summary(model1_clean)$adj.r.squared
+
+
+confint(model1_clean, level = 0.95)
+
+confint(model2_clean, level = 0.95)
+
+confint(model3_clean, level = 0.95)
+
+
+# re-run assumption checks 
+par(mfrow = c(2, 2))
+plot(model3_clean)
+par(mfrow = c(1, 1))
+
+# Residuals versus fitted values
+ggplot(
+  data.frame(
+    fitted = fitted(model3_clean),
+    residuals = residuals(model3_clean)
+  ),
+  aes(x = fitted, y = residuals)
+) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, colour = "red", linetype = "dashed") +
+  theme_bw() +
+  labs(title = "Residuals versus Fitted Values", x = "Fitted values", y = "Residuals")
+
+# Residual histogram
+hist(residuals(model3_clean), main = "Histogram of Residuals", xlab = "Residuals")
+
+# Normal Q-Q plot
+qqnorm(residuals(model3_clean))
+qqline(residuals(model3_clean), col = "red")
+
+# Shapiro-Wilk test
+if (nobs(model3_clean) >= 3 && nobs(model3_clean) <= 5000) {
+  print(shapiro.test(residuals(model3_clean)))
+}
+
+# Breusch-Pagan test for heteroscedasticity
+bptest(model3_clean) 
+
+# Multicollinearity
+vif(model3_clean)
+
+
+
+harvtest(model3_clean)
+
